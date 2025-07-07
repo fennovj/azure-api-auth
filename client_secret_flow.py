@@ -7,27 +7,51 @@ config = dotenv.dotenv_values(".env")
 tenant_id = config.get("TENANT_ID")
 client_id = config.get("CLIENT_ID")
 client_secret = config.get("CLIENT_SECRET")
+subscription_id = config.get("SUBSCRIPTION_ID")
 
-resp = requests.post(
+r_token = requests.post(
     f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
     headers = { "Content-Type": "application/x-www-form-urlencoded" },
     data = {
         "client_id": client_id,
+        "scope": "https://management.core.windows.net/.default",
+        #"scope": "https://graph.microsoft.com/.default",
+        "client_secret": client_secret,
+        "grant_type": "client_credentials"
+    }
+)
+
+assert r_token.status_code == 200, f"Failed to get access token with message {r_token.text}"
+
+r_arm = requests.get(
+    f"https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.Storage/storageAccounts?api-version=2024-01-01",
+    headers = {
+        "Authorization": f"Bearer {r_token.json()['access_token']}"
+    }
+)
+
+assert r_arm.status_code == 200, f"Failed to get subscriptions with message {r_arm.text}"
+
+r_graph_token = requests.post(
+    f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
+    headers = { "Content-Type": "application/x-www-form-urlencoded" },
+    data = {
+        "client_id": client_id,
+        #"scope": "https://management.core.windows.net/.default",
         "scope": "https://graph.microsoft.com/.default",
         "client_secret": client_secret,
         "grant_type": "client_credentials"
     }
 )
 
-assert resp.status_code == 200, f"Failed to get access token with message {resp.text}"
+assert r_graph_token.status_code == 200, f"Failed to get access token with message {r_graph_token.text}"
 
-resp2 = requests.get(
+
+r_graph = requests.get(
     "https://graph.microsoft.com/v1.0/groups/",
     headers = {
-        "Authorization": f"Bearer {resp.json()['access_token']}"
+        "Authorization": f"Bearer {r_graph_token.json()['access_token']}"
     }
 )
 
-assert resp2.status_code == 200, f"Failed to get users with message {resp2.text}"
-
-print(resp.json())
+assert r_graph.status_code == 200, f"Failed to get users with message {r_graph.text}"
